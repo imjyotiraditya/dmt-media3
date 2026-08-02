@@ -19,6 +19,7 @@ import static java.lang.annotation.ElementType.TYPE_USE;
 
 import androidx.annotation.IntDef;
 import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.common.ParserException;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.ParsableBitArray;
@@ -153,6 +154,7 @@ public final class AacUtil {
   public static final int AUDIO_OBJECT_TYPE_AAC_LC = 2;
   // Spectral Band Replication.
   public static final int AUDIO_OBJECT_TYPE_AAC_SBR = 5;
+
   // Error Resilient Bit-Sliced Arithmetic Coding.
   public static final int AUDIO_OBJECT_TYPE_AAC_ER_BSAC = 22;
   // Enhanced low delay.
@@ -163,6 +165,13 @@ public final class AacUtil {
   private static final int AUDIO_OBJECT_TYPE_ESCAPE = 31;
   // Extended high efficiency.
   public static final int AUDIO_OBJECT_TYPE_AAC_XHE = 42;
+
+  // Sync extension that signals Spectral Band Replication.
+  private static final int SYNC_EXTENSION_TYPE = 0x2B7;
+  // Sync extension that signals Parametric Stereo.
+  private static final int PS_SYNC_EXTENSION_TYPE = 0x548;
+  private static final int SYNC_EXTENSION_TYPE_BITS = 11;
+  private static final int MIN_SYNC_EXTENSION_BITS = 15;
 
   /**
    * Valid AAC Audio object types. One of {@link #AUDIO_OBJECT_TYPE_AAC_LC}, {@link
@@ -213,6 +222,8 @@ public final class AacUtil {
     int sampleRateHz = getSamplingFrequency(bitArray);
     int channelConfiguration = bitArray.readBits(4);
     String codecs = CODECS_STRING_PREFIX + audioObjectType;
+    boolean hasExtension =
+        audioObjectType == AUDIO_OBJECT_TYPE_AAC_SBR || audioObjectType == AUDIO_OBJECT_TYPE_AAC_PS;
     if (audioObjectType == AUDIO_OBJECT_TYPE_AAC_SBR
         || audioObjectType == AUDIO_OBJECT_TYPE_AAC_PS) {
       // For an AAC bitstream using spectral band replication (SBR) or parametric stereo (PS) with
@@ -265,12 +276,59 @@ public final class AacUtil {
           break;
       }
     }
+    if (!hasExtension) {
+      // A stream may declare itself as AAC LC and signal an extension later, so that decoders that
+      // do not support the extension still play it.
+      int extensionAudioObjectType = parseSyncExtension(bitArray, sampleRateHz);
+      if (extensionAudioObjectType != Format.NO_VALUE) {
+        codecs = CODECS_STRING_PREFIX + extensionAudioObjectType;
+      }
+    }
+
     // For supported containers, bits_to_decode() is always 0.
     int channelCount = AUDIO_SPECIFIC_CONFIG_CHANNEL_COUNT_TABLE[channelConfiguration];
     if (channelCount == AUDIO_SPECIFIC_CONFIG_CHANNEL_CONFIGURATION_INVALID) {
       throw ParserException.createForMalformedContainer(/* message= */ null, /* cause= */ null);
     }
     return new Config(sampleRateHz, channelCount, codecs);
+  }
+
+  /**
+   * Returns the {@link AacAudioObjectType} that a sync extension signals, or {@link
+   * Format#NO_VALUE} if there is none. The extension is not aligned, so it is searched for a bit at
+   * a time.
+   */
+  private static @AacAudioObjectType int parseSyncExtension(
+      ParsableBitArray bitArray, int sampleRateHz) {
+    for (int position = bitArray.getPosition();
+        bitArray.bitsLeft() > MIN_SYNC_EXTENSION_BITS;
+        bitArray.setPosition(++position)) {
+      if (bitArray.readBits(SYNC_EXTENSION_TYPE_BITS) != SYNC_EXTENSION_TYPE) {
+        continue;
+      }
+      if (getAudioObjectType(bitArray) != AUDIO_OBJECT_TYPE_AAC_SBR || !bitArray.readBit()) {
+        return Format.NO_VALUE;
+      }
+      if (getSamplingFrequencyQuietly(bitArray) == sampleRateHz) {
+        // The extension does not double the rate, so it is left to the decoder to work out.
+        return Format.NO_VALUE;
+      }
+      boolean hasPs =
+          bitArray.bitsLeft() > SYNC_EXTENSION_TYPE_BITS
+              && bitArray.readBits(SYNC_EXTENSION_TYPE_BITS) == PS_SYNC_EXTENSION_TYPE
+              && bitArray.readBit();
+      return hasPs ? AUDIO_OBJECT_TYPE_AAC_PS : AUDIO_OBJECT_TYPE_AAC_SBR;
+    }
+    return Format.NO_VALUE;
+  }
+
+  /** Reads a sampling frequency, returning {@link C#RATE_UNSET_INT} if it is not defined. */
+  private static int getSamplingFrequencyQuietly(ParsableBitArray bitArray) {
+    try {
+      return getSamplingFrequency(bitArray);
+    } catch (ParserException e) {
+      return C.RATE_UNSET_INT;
+    }
   }
 
   /**
