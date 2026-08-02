@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 import android.net.Uri;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.extractor.amr.AmrExtractor;
+import androidx.media3.extractor.ape.ApeExtractor;
 import androidx.media3.extractor.avi.AviExtractor;
 import androidx.media3.extractor.avif.AvifExtractor;
 import androidx.media3.extractor.bmp.BmpExtractor;
@@ -33,12 +34,16 @@ import androidx.media3.extractor.mp4.FragmentedMp4Extractor;
 import androidx.media3.extractor.mp4.Mp4Extractor;
 import androidx.media3.extractor.ogg.OggExtractor;
 import androidx.media3.extractor.png.PngExtractor;
+import androidx.media3.extractor.tak.TakExtractor;
 import androidx.media3.extractor.ts.Ac3Extractor;
 import androidx.media3.extractor.ts.Ac4Extractor;
 import androidx.media3.extractor.ts.AdtsExtractor;
 import androidx.media3.extractor.ts.PsExtractor;
 import androidx.media3.extractor.ts.TsExtractor;
+import androidx.media3.extractor.tta.TtaExtractor;
+import androidx.media3.extractor.wav.DtsWavExtractor;
 import androidx.media3.extractor.wav.WavExtractor;
+import androidx.media3.extractor.wavpack.WavpackExtractor;
 import androidx.media3.extractor.webp.WebpExtractor;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.util.ArrayList;
@@ -60,12 +65,13 @@ public final class DefaultExtractorsFactoryTest {
     Extractor[] extractors = defaultExtractorsFactory.createExtractors();
 
     List<Class<? extends Extractor>> extractorClasses = getUnderlyingExtractorClasses(extractors);
-    assertThat(extractorClasses.subList(0, 3))
-        .containsExactly(FlvExtractor.class, FlacExtractor.class, WavExtractor.class)
+    assertThat(extractorClasses.subList(0, 4))
+        .containsExactly(
+            FlvExtractor.class, FlacExtractor.class, DtsWavExtractor.class, WavExtractor.class)
         .inOrder();
-    assertThat(extractorClasses.subList(3, 5))
+    assertThat(extractorClasses.subList(4, 6))
         .containsExactly(Mp4Extractor.class, FragmentedMp4Extractor.class);
-    assertThat(extractorClasses.subList(5, extractors.length))
+    assertThat(extractorClasses.subList(6, extractors.length))
         .containsExactly(
             AmrExtractor.class,
             PsExtractor.class,
@@ -76,6 +82,10 @@ public final class DefaultExtractorsFactoryTest {
             Ac3Extractor.class,
             Ac4Extractor.class,
             Mp3Extractor.class,
+            ApeExtractor.class,
+            TakExtractor.class,
+            TtaExtractor.class,
+            WavpackExtractor.class,
             AviExtractor.class,
             JpegExtractor.class,
             PngExtractor.class,
@@ -115,6 +125,7 @@ public final class DefaultExtractorsFactoryTest {
         .containsExactly(
             FlvExtractor.class,
             FlacExtractor.class,
+            DtsWavExtractor.class,
             WavExtractor.class,
             AmrExtractor.class,
             PsExtractor.class,
@@ -124,6 +135,10 @@ public final class DefaultExtractorsFactoryTest {
             AdtsExtractor.class,
             Ac3Extractor.class,
             Ac4Extractor.class,
+            ApeExtractor.class,
+            TakExtractor.class,
+            TtaExtractor.class,
+            WavpackExtractor.class,
             AviExtractor.class,
             JpegExtractor.class,
             PngExtractor.class,

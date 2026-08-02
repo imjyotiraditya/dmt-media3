@@ -71,7 +71,8 @@ const AVCodec* getCodecByName(JNIEnv* env, jstring codecName);
  */
 AVCodecContext* createContext(JNIEnv* env, const AVCodec* codec,
                               jbyteArray extraData, jboolean outputFloat,
-                              jint rawSampleRate, jint rawChannelCount);
+                              jint rawSampleRate, jint rawChannelCount,
+                              jint bitsPerCodedSample);
 
 struct GrowOutputBufferCallback {
   uint8_t* operator()(int requiredSize) const;
@@ -119,14 +120,15 @@ jboolean ffmpegHasDecoder(JNIEnv* env, jobject thiz, jstring codecName) {
 
 jlong ffmpegInitialize(JNIEnv* env, jobject thiz, jstring codecName,
                        jbyteArray extraData, jboolean outputFloat,
-                       jint rawSampleRate, jint rawChannelCount) {
+                       jint rawSampleRate, jint rawChannelCount,
+                       jint bitsPerCodedSample) {
   const AVCodec* codec = getCodecByName(env, codecName);
   if (!codec) {
     LOGE("Codec not found.");
     return 0L;
   }
   return (jlong)createContext(env, codec, extraData, outputFloat, rawSampleRate,
-                              rawChannelCount);
+                              rawChannelCount, bitsPerCodedSample);
 }
 
 jint ffmpegDecode(JNIEnv* env, jobject thiz, jlong context, jobject inputData,
@@ -192,7 +194,7 @@ jint ffmpegGetSampleRate(JNIEnv* env, jobject thiz, jlong context) {
 }
 
 jlong ffmpegReset(JNIEnv* env, jobject thiz, jlong jContext,
-                  jbyteArray extraData) {
+                  jbyteArray extraData, jint bitsPerCodedSample) {
   AVCodecContext* context = (AVCodecContext*)jContext;
   if (!context) {
     LOGE("Tried to reset without a context.");
@@ -213,7 +215,7 @@ jlong ffmpegReset(JNIEnv* env, jobject thiz, jlong jContext,
     }
     return (jlong)createContext(env, codec, extraData, outputFloat,
                                 /* rawSampleRate= */ -1,
-                                /* rawChannelCount= */ -1);
+                                /* rawChannelCount= */ -1, bitsPerCodedSample);
   }
 
   avcodec_flush_buffers(context);
@@ -238,7 +240,8 @@ const AVCodec* getCodecByName(JNIEnv* env, jstring codecName) {
 
 AVCodecContext* createContext(JNIEnv* env, const AVCodec* codec,
                               jbyteArray extraData, jboolean outputFloat,
-                              jint rawSampleRate, jint rawChannelCount) {
+                              jint rawSampleRate, jint rawChannelCount,
+                              jint bitsPerCodedSample) {
   AVCodecContext* context = avcodec_alloc_context3(codec);
   if (!context) {
     LOGE("Failed to allocate context.");
@@ -258,9 +261,15 @@ AVCodecContext* createContext(JNIEnv* env, const AVCodec* codec,
     }
     env->GetByteArrayRegion(extraData, 0, size, (jbyte*)context->extradata);
   }
-  if (context->codec_id == AV_CODEC_ID_PCM_MULAW ||
-      context->codec_id == AV_CODEC_ID_PCM_ALAW) {
+  if (bitsPerCodedSample > 0) {
+    context->bits_per_coded_sample = bitsPerCodedSample;
+  }
+  // Decoders that cannot read the sample rate and the channel count from the
+  // bitstream, such as Monkey's Audio, need them from the container.
+  if (rawSampleRate > 0) {
     context->sample_rate = rawSampleRate;
+  }
+  if (rawChannelCount > 0) {
     av_channel_layout_default(&context->ch_layout, rawChannelCount);
   }
   context->err_recognition = AV_EF_IGNORE_ERR;
@@ -438,7 +447,7 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     return -1;
   }
   static const JNINativeMethod kFfmpegAudioDecoderMethods[] = {
-      {"ffmpegInitialize", "(Ljava/lang/String;[BZII)J",
+      {"ffmpegInitialize", "(Ljava/lang/String;[BZIII)J",
        reinterpret_cast<void*>(ffmpegInitialize)},
       {"ffmpegDecode",
        "(JLjava/nio/ByteBuffer;ILandroidx/media3/decoder/"
@@ -448,7 +457,7 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
        reinterpret_cast<void*>(ffmpegGetChannelCount)},
       {"ffmpegGetSampleRate", "(J)I",
        reinterpret_cast<void*>(ffmpegGetSampleRate)},
-      {"ffmpegReset", "(J[B)J", reinterpret_cast<void*>(ffmpegReset)},
+      {"ffmpegReset", "(J[BI)J", reinterpret_cast<void*>(ffmpegReset)},
       {"ffmpegRelease", "(J)V", reinterpret_cast<void*>(ffmpegRelease)},
   };
   if (env->RegisterNatives(clazz, kFfmpegAudioDecoderMethods,
