@@ -128,6 +128,8 @@ public final class FfmpegLibrary {
       case MimeTypes.AUDIO_E_AC3:
       case MimeTypes.AUDIO_E_AC3_JOC:
         return "eac3";
+      case MimeTypes.AUDIO_AC4:
+        return "ac4";
       case MimeTypes.AUDIO_TRUEHD:
         return "truehd";
       case MimeTypes.AUDIO_DTS:
@@ -146,6 +148,14 @@ public final class FfmpegLibrary {
         return "flac";
       case MimeTypes.AUDIO_ALAC:
         return "alac";
+      case MimeTypes.AUDIO_APE:
+        return "ape";
+      case MimeTypes.AUDIO_WAVPACK:
+        return "wavpack";
+      case MimeTypes.AUDIO_TTA:
+        return "tta";
+      case MimeTypes.AUDIO_TAK:
+        return "tak";
       case MimeTypes.AUDIO_MLAW:
         return "pcm_mulaw";
       case MimeTypes.AUDIO_ALAW:
