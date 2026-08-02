@@ -29,11 +29,59 @@ import org.junit.runner.RunWith;
 public final class AacUtilTest {
   private static final byte[] AAC_48K_2CH_HEADER = Util.getBytesFromHexString("1190");
 
+  private static final byte[] AAC_LC_HEADER = Util.getBytesFromHexString("1210");
+
+  private static final byte[] EXPLICIT_SBR_HEADER = Util.getBytesFromHexString("2a118800");
+
+  private static final byte[] BACKWARD_COMPATIBLE_SBR_HEADER =
+      Util.getBytesFromHexString("121056e598");
+
+  private static final byte[] SAME_RATE_EXTENSION_HEADER = Util.getBytesFromHexString("121056e5a0");
+
+  private static final byte[] BACKWARD_COMPATIBLE_SBR_AND_PS_HEADER =
+      Util.getBytesFromHexString("120856e59d4880");
+
   private static final byte[] NOT_ENOUGH_ARBITRARY_SAMPLING_FREQ_BITS_HEADER =
       Util.getBytesFromHexString("1790");
 
   private static final byte[] ARBITRARY_SAMPLING_FREQ_BITS_HEADER =
       Util.getBytesFromHexString("1780000790");
+
+  @Test
+  public void parseAudioSpecificConfig_aacLc_codecsSaysAacLc() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(AAC_LC_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.2");
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_explicitSbr_codecsSaysSbr() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(EXPLICIT_SBR_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.5");
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_backwardCompatibleSbr_codecsSaysSbr() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(BACKWARD_COMPATIBLE_SBR_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.5");
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_extensionRepeatingTheSampleRate_codecsSaysAacLc()
+      throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(SAME_RATE_EXTENSION_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.2");
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_backwardCompatibleSbrAndPs_codecsSaysPs() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(BACKWARD_COMPATIBLE_SBR_AND_PS_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.29");
+  }
 
   @Test
   public void parseAudioSpecificConfig_twoCh48kAac_parsedCorrectly() throws Exception {
