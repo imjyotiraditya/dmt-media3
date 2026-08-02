@@ -38,6 +38,13 @@ extern "C" {
 #define LOGD(...) \
   ((void)__android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__))
 
+struct ResampleState {
+  SwrContext* swr;
+  int channelCount;
+  int sampleRate;
+  AVSampleFormat sampleFormat;
+};
+
 #define ERROR_STRING_BUFFER_LENGTH 256
 
 // Output format corresponding to AudioFormat.ENCODING_PCM_16BIT.
@@ -302,8 +309,24 @@ int decodePacket(AVCodecContext* context, AVPacket* packet,
     int sampleCount = frame->nb_samples;
     int dataSize = av_samples_get_buffer_size(NULL, channelCount, sampleCount,
                                               sampleFormat, 1);
-    SwrContext* resampleContext = static_cast<SwrContext*>(context->opaque);
-    if (!resampleContext) {
+    ResampleState* state = static_cast<ResampleState*>(context->opaque);
+    bool needsResampler = !state || !state->swr ||
+                          state->channelCount != channelCount ||
+                          state->sampleRate != sampleRate ||
+                          state->sampleFormat != sampleFormat;
+    if (needsResampler) {
+      if (!state) {
+        state = static_cast<ResampleState*>(calloc(1, sizeof(ResampleState)));
+        if (!state) {
+          LOGE("Failed to allocate the resampler state.");
+          av_frame_free(&frame);
+          return AUDIO_DECODER_ERROR_OTHER;
+        }
+        context->opaque = state;
+      }
+      // Frees the old resampler and clears the pointer to it.
+      swr_free(&state->swr);
+      SwrContext* resampleContext = NULL;
       result =
           swr_alloc_set_opts2(&resampleContext,             // ps
                               &context->ch_layout,          // out_ch_layout
@@ -323,11 +346,16 @@ int decodePacket(AVCodecContext* context, AVPacket* packet,
       result = swr_init(resampleContext);
       if (result < 0) {
         logError("swr_init", result);
+        swr_free(&resampleContext);
         av_frame_free(&frame);
         return transformError(result);
       }
-      context->opaque = resampleContext;
+      state->swr = resampleContext;
+      state->channelCount = channelCount;
+      state->sampleRate = sampleRate;
+      state->sampleFormat = sampleFormat;
     }
+    SwrContext* resampleContext = state->swr;
 
     int outSampleSize = av_get_bytes_per_sample(context->request_sample_fmt);
     int outSamples = swr_get_out_samples(resampleContext, sampleCount);
@@ -380,9 +408,10 @@ void releaseContext(AVCodecContext* context) {
   if (!context) {
     return;
   }
-  SwrContext* swrContext;
-  if ((swrContext = (SwrContext*)context->opaque)) {
-    swr_free(&swrContext);
+  ResampleState* state;
+  if ((state = (ResampleState*)context->opaque)) {
+    swr_free(&state->swr);
+    free(state);
     context->opaque = NULL;
   }
   avcodec_free_context(&context);
