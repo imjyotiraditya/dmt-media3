@@ -19,6 +19,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
 import androidx.media3.common.ParserException;
+import androidx.media3.common.util.ParsableBitArray;
 import androidx.media3.common.util.Util;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
@@ -29,11 +30,75 @@ import org.junit.runner.RunWith;
 public final class AacUtilTest {
   private static final byte[] AAC_48K_2CH_HEADER = Util.getBytesFromHexString("1190");
 
+  private static final byte[] AAC_LC_HEADER = Util.getBytesFromHexString("1210");
+
+  private static final byte[] EXPLICIT_SBR_HEADER = Util.getBytesFromHexString("2a118800");
+
+  // AAC LC at 22.05 kHz in stereo, then a sync extension signalling SBR at 44.1 kHz.
+  private static final byte[] BACKWARD_COMPATIBLE_SBR_HEADER =
+      Util.getBytesFromHexString("139056e5a0");
+
+  private static final byte[] SAME_RATE_EXTENSION_HEADER = Util.getBytesFromHexString("121056e5a0");
+
+  // AAC LC at 22.05 kHz in mono, then sync extensions signalling SBR at 44.1 kHz and PS.
+  private static final byte[] BACKWARD_COMPATIBLE_SBR_AND_PS_HEADER =
+      Util.getBytesFromHexString("138856e5a54880");
+
   private static final byte[] NOT_ENOUGH_ARBITRARY_SAMPLING_FREQ_BITS_HEADER =
       Util.getBytesFromHexString("1790");
 
   private static final byte[] ARBITRARY_SAMPLING_FREQ_BITS_HEADER =
       Util.getBytesFromHexString("1780000790");
+
+  @Test
+  public void parseAudioSpecificConfig_aacLc_codecsSaysAacLc() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(AAC_LC_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.2");
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_explicitSbr_codecsSaysSbr() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(EXPLICIT_SBR_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.5");
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_backwardCompatibleSbr_codecsSaysSbr() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(BACKWARD_COMPATIBLE_SBR_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.5");
+    assertThat(aac.sampleRateHz).isEqualTo(44100);
+    assertThat(aac.channelCount).isEqualTo(2);
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_readToEnd_stopsBeforeSyncExtension() throws Exception {
+    ParsableBitArray bitArray = new ParsableBitArray(BACKWARD_COMPATIBLE_SBR_HEADER);
+
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(bitArray, /* forceReadToEnd= */ true);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.2");
+    assertThat(aac.sampleRateHz).isEqualTo(22050);
+    assertThat(bitArray.getPosition()).isEqualTo(16);
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_extensionRepeatingTheSampleRate_codecsSaysAacLc()
+      throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(SAME_RATE_EXTENSION_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.2");
+  }
+
+  @Test
+  public void parseAudioSpecificConfig_backwardCompatibleSbrAndPs_codecsSaysPs() throws Exception {
+    AacUtil.Config aac = AacUtil.parseAudioSpecificConfig(BACKWARD_COMPATIBLE_SBR_AND_PS_HEADER);
+
+    assertThat(aac.codecs).isEqualTo("mp4a.40.29");
+    assertThat(aac.sampleRateHz).isEqualTo(44100);
+  }
 
   @Test
   public void parseAudioSpecificConfig_twoCh48kAac_parsedCorrectly() throws Exception {

@@ -18,6 +18,7 @@ package androidx.media3.extractor;
 import static java.lang.annotation.ElementType.TYPE_USE;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.ParserException;
 import androidx.media3.common.util.Log;
@@ -164,6 +165,15 @@ public final class AacUtil {
   // Extended high efficiency.
   public static final int AUDIO_OBJECT_TYPE_AAC_XHE = 42;
 
+  // Sync extension that signals Spectral Band Replication.
+  private static final int SYNC_EXTENSION_TYPE = 0x2B7;
+  // Sync extension that signals Parametric Stereo.
+  private static final int PS_SYNC_EXTENSION_TYPE = 0x548;
+  private static final int SYNC_EXTENSION_TYPE_BITS = 11;
+  // The bits a configuration must have left to hold a sync extension, and then one for PS.
+  private static final int MIN_SYNC_EXTENSION_BITS = 16;
+  private static final int MIN_PS_SYNC_EXTENSION_BITS = 12;
+
   /**
    * Valid AAC Audio object types. One of {@link #AUDIO_OBJECT_TYPE_AAC_LC}, {@link
    * #AUDIO_OBJECT_TYPE_AAC_SBR}, {@link #AUDIO_OBJECT_TYPE_AAC_ER_BSAC}, {@link
@@ -213,6 +223,8 @@ public final class AacUtil {
     int sampleRateHz = getSamplingFrequency(bitArray);
     int channelConfiguration = bitArray.readBits(4);
     String codecs = CODECS_STRING_PREFIX + audioObjectType;
+    boolean hasExtension =
+        audioObjectType == AUDIO_OBJECT_TYPE_AAC_SBR || audioObjectType == AUDIO_OBJECT_TYPE_AAC_PS;
     if (audioObjectType == AUDIO_OBJECT_TYPE_AAC_SBR
         || audioObjectType == AUDIO_OBJECT_TYPE_AAC_PS) {
       // For an AAC bitstream using spectral band replication (SBR) or parametric stereo (PS) with
@@ -229,48 +241,113 @@ public final class AacUtil {
     }
 
     if (forceReadToEnd) {
-      switch (audioObjectType) {
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 6:
-        case 7:
-        case 17:
-        case 19:
-        case 20:
-        case 21:
-        case 22:
-        case 23:
-          parseGaSpecificConfig(bitArray, audioObjectType, channelConfiguration);
-          break;
-        default:
-          throw ParserException.createForUnsupportedContainerFeature(
-              "Unsupported audio object type: " + audioObjectType);
-      }
-      switch (audioObjectType) {
-        case 17:
-        case 19:
-        case 20:
-        case 21:
-        case 22:
-        case 23:
-          int epConfig = bitArray.readBits(2);
-          if (epConfig == 2 || epConfig == 3) {
-            throw ParserException.createForUnsupportedContainerFeature(
-                "Unsupported epConfig: " + epConfig);
-          }
-          break;
-        default:
-          break;
+      parseObjectTypeSpecificConfig(bitArray, audioObjectType, channelConfiguration);
+    } else if (!hasExtension) {
+      // A stream may declare itself as AAC LC and signal the extension after its configuration, so
+      // that decoders without the extension still play it. This is only read when the
+      // configuration is held on its own, as anything after it is then part of it.
+      @Nullable
+      SyncExtension extension =
+          parseSyncExtension(bitArray, audioObjectType, channelConfiguration, sampleRateHz);
+      if (extension != null) {
+        sampleRateHz = extension.sampleRateHz;
+        codecs = CODECS_STRING_PREFIX + extension.audioObjectType;
       }
     }
+
     // For supported containers, bits_to_decode() is always 0.
     int channelCount = AUDIO_SPECIFIC_CONFIG_CHANNEL_COUNT_TABLE[channelConfiguration];
     if (channelCount == AUDIO_SPECIFIC_CONFIG_CHANNEL_CONFIGURATION_INVALID) {
       throw ParserException.createForMalformedContainer(/* message= */ null, /* cause= */ null);
     }
     return new Config(sampleRateHz, channelCount, codecs);
+  }
+
+  /** The extension a backward compatible sync extension signals, and the rate it decodes at. */
+  private static final class SyncExtension {
+    public final @AacAudioObjectType int audioObjectType;
+    public final int sampleRateHz;
+
+    private SyncExtension(@AacAudioObjectType int audioObjectType, int sampleRateHz) {
+      this.audioObjectType = audioObjectType;
+      this.sampleRateHz = sampleRateHz;
+    }
+  }
+
+  /**
+   * Parses the backward compatible sync extension that ends an AudioSpecificConfig, as defined in
+   * ISO 14496-3 1.6.2.1, returning null if there is none or it does not raise the sample rate.
+   *
+   * @param bitArray Positioned after the channelConfiguration of an AudioSpecificConfig that it
+   *     holds alone.
+   */
+  @Nullable
+  private static SyncExtension parseSyncExtension(
+      ParsableBitArray bitArray, int audioObjectType, int channelConfiguration, int sampleRateHz) {
+    try {
+      parseObjectTypeSpecificConfig(bitArray, audioObjectType, channelConfiguration);
+      if (bitArray.bitsLeft() < MIN_SYNC_EXTENSION_BITS
+          || bitArray.readBits(SYNC_EXTENSION_TYPE_BITS) != SYNC_EXTENSION_TYPE
+          || getAudioObjectType(bitArray) != AUDIO_OBJECT_TYPE_AAC_SBR
+          || !bitArray.readBit()) {
+        return null;
+      }
+      int extensionSampleRateHz = getSamplingFrequency(bitArray);
+      if (extensionSampleRateHz == sampleRateHz) {
+        // Downsampled SBR decodes at the core rate, so the stream plays as AAC LC.
+        return null;
+      }
+      boolean hasPs =
+          bitArray.bitsLeft() >= MIN_PS_SYNC_EXTENSION_BITS
+              && bitArray.readBits(SYNC_EXTENSION_TYPE_BITS) == PS_SYNC_EXTENSION_TYPE
+              && bitArray.readBit();
+      return new SyncExtension(
+          hasPs ? AUDIO_OBJECT_TYPE_AAC_PS : AUDIO_OBJECT_TYPE_AAC_SBR, extensionSampleRateHz);
+    } catch (ParserException | UnsupportedOperationException e) {
+      // The configuration cannot be read far enough to reach an extension.
+      return null;
+    }
+  }
+
+  /** Parses the part of an AudioSpecificConfig that depends on its audio object type. */
+  private static void parseObjectTypeSpecificConfig(
+      ParsableBitArray bitArray, int audioObjectType, int channelConfiguration)
+      throws ParserException {
+    switch (audioObjectType) {
+      case 1:
+      case 2:
+      case 3:
+      case 4:
+      case 6:
+      case 7:
+      case 17:
+      case 19:
+      case 20:
+      case 21:
+      case 22:
+      case 23:
+        parseGaSpecificConfig(bitArray, audioObjectType, channelConfiguration);
+        break;
+      default:
+        throw ParserException.createForUnsupportedContainerFeature(
+            "Unsupported audio object type: " + audioObjectType);
+    }
+    switch (audioObjectType) {
+      case 17:
+      case 19:
+      case 20:
+      case 21:
+      case 22:
+      case 23:
+        int epConfig = bitArray.readBits(2);
+        if (epConfig == 2 || epConfig == 3) {
+          throw ParserException.createForUnsupportedContainerFeature(
+              "Unsupported epConfig: " + epConfig);
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   /**
