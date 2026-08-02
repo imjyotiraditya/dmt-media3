@@ -15,19 +15,28 @@
  */
 package androidx.media3.extractor;
 
+import static java.lang.Math.min;
+
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
+import androidx.media3.common.Metadata;
 import androidx.media3.common.ParserException;
+import androidx.media3.common.util.ParsableByteArray;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.util.Util;
 import androidx.media3.container.OpusUtil;
 import java.io.EOFException;
 import java.io.IOException;
+import java.math.RoundingMode;
 import org.checkerframework.dataflow.qual.Pure;
 
 /** Extractor related utility methods. */
 @UnstableApi
 public final class ExtractorUtil {
+
+  /** The maximum number of bytes to search for an ID3 tag before giving up. */
+  private static final int MAX_ID3_PEEK_BYTES = 128 * 1024;
 
   /**
    * If {@code expression} is false, throws a {@link ParserException#createForMalformedContainer
@@ -122,6 +131,109 @@ public final class ExtractorUtil {
         throw e;
       }
     }
+  }
+
+  /**
+   * Appends up to {@code length} bytes of sample data from {@code input} to {@code trackOutput},
+   * returning the number of bytes appended. Fewer bytes are appended only if the end of the input
+   * is reached.
+   *
+   * @param input The {@link ExtractorInput} from which data should be read.
+   * @param trackOutput The {@link TrackOutput} to which data should be appended.
+   * @param length The maximum number of bytes to append.
+   * @return The number of bytes appended.
+   * @throws IOException If an error occurred reading from the input.
+   */
+  public static int appendSampleData(ExtractorInput input, TrackOutput trackOutput, int length)
+      throws IOException {
+    int bytesAppended = 0;
+    while (bytesAppended < length) {
+      int result =
+          trackOutput.sampleData(input, length - bytesAppended, /* allowEndOfInput= */ true);
+      if (result == C.RESULT_END_OF_INPUT) {
+        break;
+      }
+      bytesAppended += result;
+    }
+    return bytesAppended;
+  }
+
+  /**
+   * Skips any ID3 tags at the start of {@code input}, which many files carry, returning the
+   * metadata that the first of them holds.
+   *
+   * @param input The {@link ExtractorInput} to read from.
+   * @param id3Peeker The {@link Id3Peeker} with which to peek the tags.
+   * @param skip Whether to advance the read position past the tags. Extractors pass false while
+   *     sniffing, which must leave the read position unchanged.
+   * @return The metadata of the first tag, or null if the input holds no tag.
+   * @throws IOException If an error occurred reading from the input.
+   */
+  @Nullable
+  public static Metadata skipId3Data(ExtractorInput input, Id3Peeker id3Peeker, boolean skip)
+      throws IOException {
+    @Nullable
+    Metadata metadata =
+        id3Peeker.peekId3Data(input, /* id3FramePredicate= */ null, MAX_ID3_PEEK_BYTES);
+    if (skip) {
+      input.skipFully((int) input.getPeekPosition());
+    }
+    return metadata;
+  }
+
+  /**
+   * Returns whether {@code signature} is at the peek position of {@code input}, read as a four byte
+   * big endian integer.
+   *
+   * @param input The {@link ExtractorInput} to peek from.
+   * @param scratch A scratch array holding at least four bytes.
+   * @param signature The signature to look for.
+   * @return Whether the signature is at the peek position.
+   * @throws IOException If an error occurred peeking from the input.
+   */
+  public static boolean peekSignature(
+      ExtractorInput input, ParsableByteArray scratch, int signature) throws IOException {
+    return peekSignature(input, scratch, signature, /* mask= */ 0xFFFFFFFF);
+  }
+
+  /**
+   * Returns whether {@code signature} is at the peek position of {@code input}, read as a four byte
+   * big endian integer and masked with {@code mask}, which signatures shorter than four bytes need.
+   *
+   * @param input The {@link ExtractorInput} to peek from.
+   * @param scratch A scratch array holding at least four bytes.
+   * @param signature The signature to look for.
+   * @param mask The mask to apply to the peeked bytes before comparing them.
+   * @return Whether the signature is at the peek position.
+   * @throws IOException If an error occurred peeking from the input.
+   */
+  public static boolean peekSignature(
+      ExtractorInput input, ParsableByteArray scratch, int signature, int mask) throws IOException {
+    if (!input.peekFully(
+        scratch.getData(), /* offset= */ 0, /* length= */ 4, /* allowEndOfInput= */ true)) {
+      return false;
+    }
+    scratch.setPosition(0);
+    return (scratch.readInt() & mask) == signature;
+  }
+
+  /**
+   * Returns the average bitrate of {@code lengthBytes} bytes of media that last {@code durationUs},
+   * or {@link Format#NO_VALUE} if either is unknown.
+   *
+   * @param lengthBytes The length in bytes of the media, or a negative value if unknown.
+   * @param durationUs The duration in microseconds of the media, or a negative value if unknown.
+   * @return The average bitrate in bits per second, or {@link Format#NO_VALUE} if unknown.
+   */
+  public static int getAverageBitrate(long lengthBytes, long durationUs) {
+    if (lengthBytes <= 0 || durationUs <= 0) {
+      return Format.NO_VALUE;
+    }
+    return (int)
+        min(
+            Util.scaleLargeValue(
+                lengthBytes * C.BITS_PER_BYTE, C.MICROS_PER_SECOND, durationUs, RoundingMode.DOWN),
+            Integer.MAX_VALUE);
   }
 
   /**

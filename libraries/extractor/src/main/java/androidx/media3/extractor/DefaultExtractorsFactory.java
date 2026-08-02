@@ -29,6 +29,7 @@ import androidx.media3.common.Player;
 import androidx.media3.common.util.TimestampAdjuster;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.extractor.amr.AmrExtractor;
+import androidx.media3.extractor.ape.ApeExtractor;
 import androidx.media3.extractor.avi.AviExtractor;
 import androidx.media3.extractor.avif.AvifExtractor;
 import androidx.media3.extractor.bmp.BmpExtractor;
@@ -42,6 +43,7 @@ import androidx.media3.extractor.mp4.FragmentedMp4Extractor;
 import androidx.media3.extractor.mp4.Mp4Extractor;
 import androidx.media3.extractor.ogg.OggExtractor;
 import androidx.media3.extractor.png.PngExtractor;
+import androidx.media3.extractor.tak.TakExtractor;
 import androidx.media3.extractor.text.DefaultSubtitleParserFactory;
 import androidx.media3.extractor.text.SubtitleParser;
 import androidx.media3.extractor.ts.Ac3Extractor;
@@ -51,7 +53,10 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory;
 import androidx.media3.extractor.ts.PsExtractor;
 import androidx.media3.extractor.ts.TsExtractor;
 import androidx.media3.extractor.ts.TsPayloadReader;
+import androidx.media3.extractor.tta.TtaExtractor;
+import androidx.media3.extractor.wav.DtsWavExtractor;
 import androidx.media3.extractor.wav.WavExtractor;
+import androidx.media3.extractor.wavpack.WavpackExtractor;
 import androidx.media3.extractor.webp.WebpExtractor;
 import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
@@ -76,7 +81,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>MPEG TS ({@link TsExtractor})
  *   <li>MPEG PS ({@link PsExtractor})
  *   <li>FLV ({@link FlvExtractor})
- *   <li>WAV ({@link WavExtractor})
+ *   <li>WAV ({@link DtsWavExtractor}, {@link WavExtractor})
+ *   <li>Monkey's Audio ({@link ApeExtractor})
+ *   <li>TAK ({@link TakExtractor})
+ *   <li>TrueAudio ({@link TtaExtractor})
+ *   <li>WavPack ({@link WavpackExtractor})
  *   <li>AC3 ({@link Ac3Extractor})
  *   <li>AC4 ({@link Ac4Extractor})
  *   <li>AMR ({@link AmrExtractor})
@@ -122,6 +131,10 @@ public final class DefaultExtractorsFactory implements ExtractorsFactory {
         FileTypes.MP3,
         // The following extractors are not part of the optimized ordering, and were appended
         // without further analysis.
+        FileTypes.APE,
+        FileTypes.TAK,
+        FileTypes.TTA,
+        FileTypes.WAVPACK,
         FileTypes.AVI,
         FileTypes.MIDI,
         FileTypes.JPEG,
@@ -581,7 +594,20 @@ public final class DefaultExtractorsFactory implements ExtractorsFactory {
                 tsTimestampSearchBytes));
         break;
       case FileTypes.WAV:
+        extractors.add(new DtsWavExtractor());
         extractors.add(new WavExtractor());
+        break;
+      case FileTypes.APE:
+        extractors.add(new ApeExtractor());
+        break;
+      case FileTypes.TAK:
+        extractors.add(new TakExtractor());
+        break;
+      case FileTypes.TTA:
+        extractors.add(new TtaExtractor());
+        break;
+      case FileTypes.WAVPACK:
+        extractors.add(new WavpackExtractor());
         break;
       case FileTypes.JPEG:
         extractors.add(new JpegExtractor(jpegFlags));
