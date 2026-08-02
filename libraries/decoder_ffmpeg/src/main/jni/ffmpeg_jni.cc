@@ -38,6 +38,13 @@ extern "C" {
 #define LOGD(...) \
   ((void)__android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__))
 
+struct ResampleState {
+  SwrContext* swr;
+  int channelCount;
+  int sampleRate;
+  AVSampleFormat sampleFormat;
+};
+
 #define LIBRARY_FUNC(RETURN_TYPE, NAME, ...)                               \
   extern "C" {                                                             \
   JNIEXPORT RETURN_TYPE                                                    \
@@ -345,8 +352,15 @@ int decodePacket(AVCodecContext* context, AVPacket* packet,
     int sampleCount = frame->nb_samples;
     int dataSize = av_samples_get_buffer_size(NULL, channelCount, sampleCount,
                                               sampleFormat, 1);
-    SwrContext* resampleContext = static_cast<SwrContext*>(context->opaque);
-    if (!resampleContext) {
+    ResampleState* state = static_cast<ResampleState*>(context->opaque);
+    bool formatChanged = !state || state->channelCount != channelCount ||
+                        state->sampleRate != sampleRate ||
+                        state->sampleFormat != sampleFormat;
+    if (formatChanged) {
+      SwrContext* resampleContext = state ? state->swr : NULL;
+      if (resampleContext) {
+        swr_free(&resampleContext);
+      }
       result =
           swr_alloc_set_opts2(&resampleContext,             // ps
                               &context->ch_layout,          // out_ch_layout
@@ -369,8 +383,16 @@ int decodePacket(AVCodecContext* context, AVPacket* packet,
         av_frame_free(&frame);
         return transformError(result);
       }
-      context->opaque = resampleContext;
+      if (!state) {
+        state = (ResampleState*)malloc(sizeof(ResampleState));
+        context->opaque = state;
+      }
+      state->swr = resampleContext;
+      state->channelCount = channelCount;
+      state->sampleRate = sampleRate;
+      state->sampleFormat = sampleFormat;
     }
+    SwrContext* resampleContext = state->swr;
 
     int outSampleSize = av_get_bytes_per_sample(context->request_sample_fmt);
     int outSamples = swr_get_out_samples(resampleContext, sampleCount);
@@ -423,9 +445,10 @@ void releaseContext(AVCodecContext* context) {
   if (!context) {
     return;
   }
-  SwrContext* swrContext;
-  if ((swrContext = (SwrContext*)context->opaque)) {
-    swr_free(&swrContext);
+  ResampleState* state;
+  if ((state = (ResampleState*)context->opaque)) {
+    swr_free(&state->swr);
+    free(state);
     context->opaque = NULL;
   }
   avcodec_free_context(&context);
