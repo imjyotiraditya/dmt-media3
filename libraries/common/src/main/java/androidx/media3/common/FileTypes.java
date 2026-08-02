@@ -66,7 +66,7 @@ public final class FileTypes {
   @Target(TYPE_USE)
   @IntDef({
     UNKNOWN, AC3, AC4, ADTS, AMR, FLAC, FLV, MATROSKA, MP3, MP4, OGG, PS, TS, WAV, WEBVTT, JPEG,
-    MIDI, AVI, PNG, WEBP, BMP, HEIF, AVIF
+    MIDI, AVI, PNG, WEBP, BMP, HEIF, AVIF, WAVPACK, TTA, APE, TAK
   })
   public @interface Type {}
 
@@ -139,6 +139,18 @@ public final class FileTypes {
   /** File type for the AVIF format. */
   public static final int AVIF = 21;
 
+  /** File type for the WavPack format. */
+  public static final int WAVPACK = 22;
+
+  /** File type for the TTA format. */
+  public static final int TTA = 23;
+
+  /** File type for the APE format. */
+  public static final int APE = 24;
+
+  /** File type for the TAK format. */
+  public static final int TAK = 25;
+
   @VisibleForTesting /* package */ static final String HEADER_CONTENT_TYPE = "Content-Type";
 
   private static final String EXTENSION_AC3 = ".ac3";
@@ -168,7 +180,11 @@ public final class FileTypes {
   private static final String EXTENSION_TS = ".ts";
   private static final String EXTENSION_PREFIX_TS = ".ts";
   private static final String EXTENSION_WAV = ".wav";
+  private static final String EXTENSION_WV = ".wv";
   private static final String EXTENSION_WAVE = ".wave";
+  private static final String EXTENSION_TTA = ".tta";
+  private static final String EXTENSION_APE = ".ape";
+  private static final String EXTENSION_TAK = ".tak";
   private static final String EXTENSION_VTT = ".vtt";
   private static final String EXTENSION_WEBVTT = ".webvtt";
   private static final String EXTENSION_JPG = ".jpg";
@@ -240,6 +256,14 @@ public final class FileTypes {
         return FileTypes.TS;
       case MimeTypes.AUDIO_WAV:
         return FileTypes.WAV;
+      case MimeTypes.AUDIO_WAVPACK:
+        return FileTypes.WAVPACK;
+      case MimeTypes.AUDIO_TTA:
+        return FileTypes.TTA;
+      case MimeTypes.AUDIO_APE:
+        return FileTypes.APE;
+      case MimeTypes.AUDIO_TAK:
+        return FileTypes.TAK;
       case MimeTypes.TEXT_VTT:
         return FileTypes.WEBVTT;
       case MimeTypes.IMAGE_JPEG:
@@ -318,6 +342,15 @@ public final class FileTypes {
       return FileTypes.TS;
     } else if (filename.endsWith(EXTENSION_WAV) || filename.endsWith(EXTENSION_WAVE)) {
       return FileTypes.WAV;
+    } else if (filename.endsWith(EXTENSION_WV)) {
+      return FileTypes.WAVPACK;
+    } else if (filename.endsWith(EXTENSION_TTA)) {
+      return FileTypes.TTA;
+    } else if (filename.endsWith(EXTENSION_APE)) {
+      return FileTypes.APE;
+    } else if (filename.endsWith(EXTENSION_TAK)) {
+      return FileTypes.TAK;
+
     } else if (filename.endsWith(EXTENSION_VTT) || filename.endsWith(EXTENSION_WEBVTT)) {
       return FileTypes.WEBVTT;
     } else if (filename.endsWith(EXTENSION_JPG) || filename.endsWith(EXTENSION_JPEG)) {

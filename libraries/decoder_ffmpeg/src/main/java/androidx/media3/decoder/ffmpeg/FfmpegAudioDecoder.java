@@ -49,6 +49,7 @@ public final class FfmpegAudioDecoder
 
   private final String codecName;
   @Nullable private final byte[] extraData;
+  private final int bitsPerCodedSample;
   private final @C.PcmEncoding int encoding;
   private int outputBufferSize;
 
@@ -74,8 +75,15 @@ public final class FfmpegAudioDecoder
     encoding = outputFloat ? C.ENCODING_PCM_FLOAT : C.ENCODING_PCM_16BIT;
     outputBufferSize =
         outputFloat ? INITIAL_OUTPUT_BUFFER_SIZE_32BIT : INITIAL_OUTPUT_BUFFER_SIZE_16BIT;
+    bitsPerCodedSample = getBitsPerCodedSample(format);
     nativeContext =
-        ffmpegInitialize(codecName, extraData, outputFloat, format.sampleRate, format.channelCount);
+        ffmpegInitialize(
+            codecName,
+            extraData,
+            outputFloat,
+            format.sampleRate,
+            format.channelCount,
+            bitsPerCodedSample);
     if (nativeContext == 0) {
       throw new FfmpegDecoderException("Initialization failed.");
     }
@@ -109,7 +117,7 @@ public final class FfmpegAudioDecoder
   protected FfmpegDecoderException decode(
       DecoderInputBuffer inputBuffer, SimpleDecoderOutputBuffer outputBuffer, boolean reset) {
     if (reset) {
-      nativeContext = ffmpegReset(nativeContext, extraData);
+      nativeContext = ffmpegReset(nativeContext, extraData, bitsPerCodedSample);
       if (nativeContext == 0) {
         return new FfmpegDecoderException("Error resetting (see logcat).");
       }
@@ -185,6 +193,16 @@ public final class FfmpegAudioDecoder
   }
 
   /**
+   * Returns the number of bits every coded sample holds, which some decoders need in order to pick
+   * their output format, or 0 if the format does not say.
+   */
+  private static int getBitsPerCodedSample(Format format) {
+    return format.pcmEncoding == Format.NO_VALUE
+        ? 0
+        : Util.getByteDepth(format.pcmEncoding) * C.BITS_PER_BYTE;
+  }
+
+  /**
    * Returns FFmpeg-compatible codec-specific initialization data ("extra data"), or {@code null} if
    * not required.
    */
@@ -192,7 +210,10 @@ public final class FfmpegAudioDecoder
   private static byte[] getExtraData(String mimeType, List<byte[]> initializationData) {
     switch (mimeType) {
       case MimeTypes.AUDIO_AAC:
+      case MimeTypes.AUDIO_APE:
       case MimeTypes.AUDIO_OPUS:
+      case MimeTypes.AUDIO_TAK:
+      case MimeTypes.AUDIO_TTA:
         return initializationData.get(0);
       case MimeTypes.AUDIO_ALAC:
         return getAlacExtraData(initializationData);
@@ -302,7 +323,8 @@ public final class FfmpegAudioDecoder
       @Nullable byte[] extraData,
       boolean outputFloat,
       int rawSampleRate,
-      int rawChannelCount);
+      int rawChannelCount,
+      int bitsPerCodedSample);
 
   private native int ffmpegDecode(
       long context,
@@ -316,7 +338,7 @@ public final class FfmpegAudioDecoder
 
   private native int ffmpegGetSampleRate(long context);
 
-  private native long ffmpegReset(long context, @Nullable byte[] extraData);
+  private native long ffmpegReset(long context, @Nullable byte[] extraData, int bitsPerCodedSample);
 
   private native void ffmpegRelease(long context);
 }
