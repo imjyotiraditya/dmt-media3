@@ -12,6 +12,7 @@ track 0:
   track duration = 2783979
   format 0:
     averageBitrate = 109656
+    peakBitrate = 258055
     containerMimeType = audio/mpeg
     sampleMimeType = audio/mpeg
     maxInputSize = 4096

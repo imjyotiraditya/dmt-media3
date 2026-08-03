@@ -137,6 +137,15 @@ import androidx.media3.extractor.SeekPoint;
     return getBitrate();
   }
 
+  /**
+   * An estimated seeker stands in for a stream whose own seeking metadata was unusable, so the
+   * bitrate it reports is an average that says nothing about how much the stream varies.
+   */
+  @Override
+  public int getPeakBitrate() {
+    return isEstimated() ? C.RATE_UNSET_INT : getBitrate();
+  }
+
   public ConstantBitrateSeeker copyWithNewDataEndPosition(long dataEndPosition) {
     return new ConstantBitrateSeeker(
         /* inputLength= */ dataEndPosition,

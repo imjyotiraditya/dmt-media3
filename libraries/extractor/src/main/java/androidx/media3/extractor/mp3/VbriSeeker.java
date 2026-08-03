@@ -116,6 +116,7 @@ import androidx.media3.extractor.SeekPoint;
   private final long dataStartPosition;
   private final long dataEndPosition;
   private final int averageBitrate;
+  private final int peakBitrate;
 
   private VbriSeeker(
       long[] timesUs,
@@ -129,6 +130,25 @@ import androidx.media3.extractor.SeekPoint;
     this.dataStartPosition = dataStartPosition;
     this.dataEndPosition = dataEndPosition;
     this.averageBitrate = computeAverageBitrate(dataEndPosition - dataStartPosition, durationUs);
+    this.peakBitrate = computePeakBitrate(timesUs, positions, durationUs, dataEndPosition);
+  }
+
+  /**
+   * Returns the highest bitrate of any segment the table of contents describes, or {@link
+   * C#RATE_UNSET_INT} if it cannot be worked out.
+   */
+  private static int computePeakBitrate(
+      long[] timesUs, long[] positions, long durationUs, long dataEndPosition) {
+    int peakBitrate = C.RATE_UNSET_INT;
+    for (int index = 0; index < positions.length; index++) {
+      boolean isLastSegment = index == positions.length - 1;
+      long endPosition = isLastSegment ? dataEndPosition : positions[index + 1];
+      long endTimeUs = isLastSegment ? durationUs : timesUs[index + 1];
+      int bitrate =
+          computeAverageBitrate(endPosition - positions[index], endTimeUs - timesUs[index]);
+      peakBitrate = max(peakBitrate, bitrate);
+    }
+    return peakBitrate;
   }
 
   @Override
@@ -171,5 +191,10 @@ import androidx.media3.extractor.SeekPoint;
   @Override
   public int getAverageBitrate() {
     return averageBitrate;
+  }
+
+  @Override
+  public int getPeakBitrate() {
+    return peakBitrate;
   }
 }

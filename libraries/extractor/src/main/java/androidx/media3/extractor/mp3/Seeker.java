@@ -51,6 +51,14 @@ import androidx.media3.extractor.SeekMap;
    */
   int getAverageBitrate();
 
+  /**
+   * Returns the peak bitrate of the audio data, or {@link C#RATE_UNSET_INT} if not known.
+   *
+   * <p>A stream whose peak bitrate is the same as its {@linkplain #getAverageBitrate() average
+   * bitrate} is encoded at a constant bitrate.
+   */
+  int getPeakBitrate();
+
   /** A {@link Seeker} that does not support seeking through audio data. */
   /* package */ class UnseekableSeeker extends SeekMap.Unseekable implements Seeker {
 
@@ -76,6 +84,11 @@ import androidx.media3.extractor.SeekMap;
 
     @Override
     public int getAverageBitrate() {
+      return C.RATE_UNSET_INT;
+    }
+
+    @Override
+    public int getPeakBitrate() {
       return C.RATE_UNSET_INT;
     }
   }

@@ -78,6 +78,12 @@ import androidx.media3.extractor.IndexSeekMap;
     return averageBitrate;
   }
 
+  /** The index is built while the file is read, so the peak is not known when it is needed. */
+  @Override
+  public int getPeakBitrate() {
+    return C.RATE_UNSET_INT;
+  }
+
   /**
    * Adds a seek point to the index if it is sufficiently distant from the other points.
    *

@@ -325,6 +325,9 @@ public final class Mp3Extractor implements Extractor {
       if (seeker.getAverageBitrate() != C.RATE_UNSET_INT) {
         format.setAverageBitrate(seeker.getAverageBitrate());
       }
+      if (seeker.getPeakBitrate() != C.RATE_UNSET_INT) {
+        format.setPeakBitrate(seeker.getPeakBitrate());
+      }
       currentTrackOutput.format(format.build());
       firstSamplePosition = input.getPosition();
     } else if (firstSamplePosition != 0) {

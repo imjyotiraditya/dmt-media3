@@ -137,4 +137,9 @@ import androidx.media3.extractor.metadata.id3.MlltFrame;
   public int getAverageBitrate() {
     return C.RATE_UNSET_INT;
   }
+
+  @Override
+  public int getPeakBitrate() {
+    return C.RATE_UNSET_INT;
+  }
 }
