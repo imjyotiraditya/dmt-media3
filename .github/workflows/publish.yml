@@ -1,0 +1,66 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MODULES: lib-common lib-container lib-database lib-datasource lib-decoder lib-extractor lib-exoplayer lib-session lib-decoder-midi lib-decoder-ffmpeg lib-inspector
+  NDK_VERSION: r29
+  ANDROID_API: 23
+  DECODERS: vorbis opus flac alac pcm_mulaw pcm_alaw mp3 amrnb amrwb aac ac3 eac3 dca mlp truehd ac4 ape wavpack tta tak
+  FFMPEG_REPO: https://github.com/imjyotiraditya/dmt-ffmpeg.git
+  FFMPEG_BRANCH: main
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Set up Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+
+      - name: Clone ffmpeg
+        run: git clone "$FFMPEG_REPO" -b "$FFMPEG_BRANCH" --depth=1 libraries/decoder_ffmpeg/src/main/jni/ffmpeg
+
+      - name: Build ffmpeg
+        working-directory: libraries/decoder_ffmpeg/src/main/jni
+        run: ./build_ffmpeg.sh "$GITHUB_WORKSPACE/libraries/decoder_ffmpeg/src/main" "${{ steps.ndk.outputs.ndk-path }}" linux-x86_64 "$ANDROID_API" $DECODERS
+
+      - name: Publish to local repo
+        run: |
+          TASKS=""
+          for module in $MODULES; do
+            TASKS="$TASKS :${module}:publishAllPublicationsToMavenRepository"
+          done
+          ./gradlew -PmavenRepo="$GITHUB_WORKSPACE/maven" $TASKS
+
+      - name: Push maven repo
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: maven
+          publish_dir: ./maven
+          destination_dir: maven
+          force_orphan: true
+          commit_message: "-- maven: publish ${{ github.sha }}"
