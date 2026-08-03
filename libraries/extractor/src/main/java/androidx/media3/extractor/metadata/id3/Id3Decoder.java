@@ -417,6 +417,10 @@ public final class Id3Decoder extends SimpleMetadataDecoder {
           && frameId2 == 'M'
           && (frameId3 == 'M' || majorVersion == 2)) {
         frame = decodeCommentFrame(id3Data, frameSize);
+      } else if (majorVersion == 2
+          ? (frameId0 == 'U' && frameId1 == 'L' && frameId2 == 'T')
+          : (frameId0 == 'U' && frameId1 == 'S' && frameId2 == 'L' && frameId3 == 'T')) {
+        frame = decodeUsltFrame(id3Data, frameSize);
       } else if (frameId0 == 'C' && frameId1 == 'H' && frameId2 == 'A' && frameId3 == 'P') {
         frame =
             decodeChapterFrame(
@@ -655,6 +659,40 @@ public final class Id3Decoder extends SimpleMetadataDecoder {
     String text = decodeStringIfValid(data, textStartIndex, textEndIndex, charset);
 
     return new CommentFrame(language, description, text);
+  }
+
+  /**
+   * Decodes an unsynchronized lyrics frame, which holds the same fields as a comment frame but
+   * carries the lyrics of the track.
+   *
+   * <p>The frame is decoded to a {@link TextInformationFrame} identified as {@code USLT}, which is
+   * how the lyrics of an MP4 file are exposed too, so that lyrics read the same whatever the file
+   * they came from. The language is dropped because the description already tells apart the
+   * variants that a file holds more than one of.
+   */
+  @Nullable
+  private static TextInformationFrame decodeUsltFrame(ParsableByteArray id3Data, int frameSize) {
+    if (frameSize < 4) {
+      // Frame is malformed.
+      return null;
+    }
+
+    int encoding = id3Data.readUnsignedByte();
+    Charset charset = getCharset(encoding);
+
+    id3Data.skipBytes(3); // language
+
+    byte[] data = new byte[frameSize - 4];
+    id3Data.readBytes(data, 0, frameSize - 4);
+
+    int descriptionEndIndex = indexOfTerminator(data, 0, encoding);
+    String description = new String(data, 0, descriptionEndIndex, charset);
+
+    int textStartIndex = descriptionEndIndex + delimiterLength(encoding);
+    int textEndIndex = indexOfTerminator(data, textStartIndex, encoding);
+    String text = decodeStringIfValid(data, textStartIndex, textEndIndex, charset);
+
+    return new TextInformationFrame("USLT", description, text);
   }
 
   @Nullable
