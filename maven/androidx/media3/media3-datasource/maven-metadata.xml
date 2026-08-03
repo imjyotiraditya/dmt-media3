@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>androidx.media3</groupId>
+  <artifactId>media3-datasource</artifactId>
+  <versioning>
+    <latest>1.11.0-rc01-dmt</latest>
+    <release>1.11.0-rc01-dmt</release>
+    <versions>
+      <version>1.11.0-rc01-dmt</version>
+    </versions>
+    <lastUpdated>20260803133721</lastUpdated>
+  </versioning>
+</metadata>
