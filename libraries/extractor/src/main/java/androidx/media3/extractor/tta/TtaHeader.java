@@ -43,6 +43,9 @@ import java.util.Arrays;
   /** The sample rate in Hertz. */
   public final int sampleRate;
 
+  /** Number of bits per sample of the audio the file holds. */
+  public final int bitDepth;
+
   /** Number of samples in the file. */
   public final long sampleCount;
 
@@ -72,7 +75,7 @@ import java.util.Arrays;
     }
     scratch.skipBytes(2); // Audio format.
     int channelCount = scratch.readLittleEndianUnsignedShort();
-    scratch.skipBytes(2); // Bit depth, which the decoder reads from the header itself.
+    int bitDepth = scratch.readLittleEndianUnsignedShort();
     int sampleRate = (int) scratch.readLittleEndianUnsignedInt();
     long sampleCount = scratch.readLittleEndianUnsignedInt();
     if (sampleRate <= 0 || sampleCount <= 0) {
@@ -88,6 +91,7 @@ import java.util.Arrays;
     return new TtaHeader(
         channelCount,
         sampleRate,
+        bitDepth,
         sampleCount,
         frameLength,
         (int) frameCount,
@@ -97,12 +101,14 @@ import java.util.Arrays;
   private TtaHeader(
       int channelCount,
       int sampleRate,
+      int bitDepth,
       long sampleCount,
       int frameLength,
       int frameCount,
       byte[] headerBytes) {
     this.channelCount = channelCount;
     this.sampleRate = sampleRate;
+    this.bitDepth = bitDepth;
     this.sampleCount = sampleCount;
     this.frameLength = frameLength;
     this.frameCount = frameCount;

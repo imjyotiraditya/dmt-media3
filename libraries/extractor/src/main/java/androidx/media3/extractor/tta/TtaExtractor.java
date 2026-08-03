@@ -195,6 +195,7 @@ public final class TtaExtractor implements Extractor {
                 .setSampleMimeType(MimeTypes.AUDIO_TTA)
                 .setChannelCount(header.channelCount)
                 .setSampleRate(header.sampleRate)
+                .setPcmEncoding(Util.getPcmEncoding(header.bitDepth))
                 .setAverageBitrate(
                     getAverageBitrate(
                         input.getLength() - castNonNull(framePositions)[0], durationUs))

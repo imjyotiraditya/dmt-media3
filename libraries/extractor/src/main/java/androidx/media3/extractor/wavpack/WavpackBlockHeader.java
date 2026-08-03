@@ -15,6 +15,7 @@
  */
 package androidx.media3.extractor.wavpack;
 
+import androidx.media3.common.C;
 import androidx.media3.common.util.ParsableByteArray;
 
 /** Header of a WavPack block, as defined by the WavPack bitstream format. */
@@ -28,6 +29,9 @@ import androidx.media3.common.util.ParsableByteArray;
 
   private static final int FLAG_MONO = 0x0004;
   private static final int FLAG_FINAL_BLOCK = 0x1000;
+
+  /** Mask of the flags holding the number of bytes per sample, less one. */
+  private static final int MASK_BYTES_PER_SAMPLE = 0x0003;
 
   private static final int[] SAMPLE_RATES =
       new int[] {
@@ -53,6 +57,9 @@ import androidx.media3.common.util.ParsableByteArray;
   /** The number of channels in this block. */
   public final int channelCount;
 
+  /** Number of bits per sample of the audio this block holds. */
+  public final int bitDepth;
+
   /** Whether this block is the last one holding samples for the same block index. */
   public final boolean isFinalBlock;
 
@@ -66,6 +73,7 @@ import androidx.media3.common.util.ParsableByteArray;
       int sampleCount,
       int sampleRate,
       int channelCount,
+      int bitDepth,
       boolean isFinalBlock) {
     this.bodySize = bodySize;
     this.totalSamples = totalSamples;
@@ -73,6 +81,7 @@ import androidx.media3.common.util.ParsableByteArray;
     this.sampleCount = sampleCount;
     this.sampleRate = sampleRate;
     this.channelCount = channelCount;
+    this.bitDepth = bitDepth;
     this.isFinalBlock = isFinalBlock;
   }
 
@@ -109,6 +118,7 @@ import androidx.media3.common.util.ParsableByteArray;
         sampleCount,
         SAMPLE_RATES[(flags >> 23) & 0xF],
         /* channelCount= */ (flags & FLAG_MONO) != 0 ? 1 : 2,
+        /* bitDepth= */ ((flags & MASK_BYTES_PER_SAMPLE) + 1) * C.BITS_PER_BYTE,
         /* isFinalBlock= */ (flags & FLAG_FINAL_BLOCK) != 0);
   }
 }
