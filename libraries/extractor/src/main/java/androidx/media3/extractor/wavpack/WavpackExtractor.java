@@ -172,6 +172,7 @@ public final class WavpackExtractor implements Extractor {
                 .setSampleMimeType(MimeTypes.AUDIO_WAVPACK)
                 .setChannelCount(header.channelCount)
                 .setSampleRate(sampleRate)
+                .setPcmEncoding(Util.getPcmEncoding(header.bitDepth))
                 .setMetadata(apeMetadata)
                 .build());
     checkStateNotNull(extractorOutput).seekMap(createSeekMap(input, header));
