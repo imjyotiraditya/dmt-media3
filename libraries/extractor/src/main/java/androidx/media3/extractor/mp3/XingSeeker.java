@@ -17,6 +17,7 @@ package androidx.media3.extractor.mp3;
 
 import static androidx.media3.extractor.mp3.Mp3Util.computeAverageBitrate;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.Math.max;
 
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
@@ -70,6 +71,7 @@ import androidx.media3.extractor.SeekPoint;
   private final int xingFrameSize;
   private final long durationUs;
   private final int averageBitrate;
+  private final int peakBitrate;
 
   /** Data size, including the XING frame. */
   private final long dataSize;
@@ -94,7 +96,37 @@ import androidx.media3.extractor.SeekPoint;
     this.averageBitrate = computeAverageBitrate(dataSize - xingFrameSize, durationUs);
     this.dataSize = dataSize;
     this.tableOfContents = tableOfContents;
+    this.peakBitrate = computePeakBitrate(tableOfContents, dataSize, xingFrameSize, durationUs);
     dataEndPosition = dataSize == C.LENGTH_UNSET ? C.INDEX_UNSET : dataStartPosition + dataSize;
+  }
+
+  /**
+   * Returns the highest bitrate of any entry of {@code tableOfContents}, or {@link
+   * C#RATE_UNSET_INT} if it cannot be worked out.
+   *
+   * <p>Every entry covers the same fraction of the duration, so the entry holding the most bytes is
+   * the one with the highest bitrate. The bitrate this returns is therefore averaged over that
+   * fraction rather than measured over a single frame, and is lower than the true peak.
+   */
+  private static int computePeakBitrate(
+      @Nullable long[] tableOfContents, long dataSize, int xingFrameSize, long durationUs) {
+    if (tableOfContents == null || dataSize == C.LENGTH_UNSET) {
+      return C.RATE_UNSET_INT;
+    }
+    long entryDurationUs = durationUs / tableOfContents.length;
+    int peakBitrate = C.RATE_UNSET_INT;
+    for (int index = 0; index < tableOfContents.length; index++) {
+      long scaledPosition = tableOfContents[index];
+      long nextScaledPosition =
+          index == tableOfContents.length - 1 ? 256 : tableOfContents[index + 1];
+      long entrySize = ((nextScaledPosition - scaledPosition) * dataSize) / 256;
+      if (index == 0) {
+        // The first entry holds the Xing frame itself, which is not audio data.
+        entrySize -= xingFrameSize;
+      }
+      peakBitrate = max(peakBitrate, computeAverageBitrate(entrySize, entryDurationUs));
+    }
+    return peakBitrate;
   }
 
   @Override
@@ -169,6 +201,11 @@ import androidx.media3.extractor.SeekPoint;
   @Override
   public int getAverageBitrate() {
     return averageBitrate;
+  }
+
+  @Override
+  public int getPeakBitrate() {
+    return peakBitrate;
   }
 
   /**
