@@ -692,7 +692,7 @@ public final class Id3Decoder extends SimpleMetadataDecoder {
     int textEndIndex = indexOfTerminator(data, textStartIndex, encoding);
     String text = decodeStringIfValid(data, textStartIndex, textEndIndex, charset);
 
-    return new TextInformationFrame("USLT", description, text);
+    return new TextInformationFrame("USLT", description, ImmutableList.of(text));
   }
 
   @Nullable
