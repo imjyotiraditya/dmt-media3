@@ -36,6 +36,7 @@ public final class Id3DecoderTest {
 
   private static final byte[] TAG_HEADER = new byte[] {'I', 'D', '3', 4, 0, 0, 0, 0, 0, 0};
   private static final int FRAME_HEADER_LENGTH = 10;
+  private static final int ID3_TEXT_ENCODING_UTF_16 = 1;
   private static final int ID3_TEXT_ENCODING_UTF_8 = 3;
 
   @Test
@@ -428,6 +429,81 @@ public final class Id3DecoderTest {
     assertThat(commentFrame.language).isEqualTo("eng");
     assertThat(commentFrame.description).isEmpty();
     assertThat(commentFrame.text).isEmpty();
+  }
+
+  @Test
+  public void decodeUsltFrame() {
+    byte[] rawId3 =
+        buildSingleFrameTag(
+            "USLT",
+            new byte[] {
+              ID3_TEXT_ENCODING_UTF_8,
+              101,
+              110,
+              103,
+              100,
+              101,
+              115,
+              99,
+              114,
+              105,
+              112,
+              116,
+              105,
+              111,
+              110,
+              0,
+              116,
+              101,
+              120,
+              116,
+              0
+            });
+    Id3Decoder decoder = new Id3Decoder();
+
+    Metadata metadata = decoder.decode(rawId3, rawId3.length);
+
+    assertThat(metadata.length()).isEqualTo(1);
+    TextInformationFrame usltFrame = (TextInformationFrame) metadata.get(0);
+    assertThat(usltFrame.id).isEqualTo("USLT");
+    assertThat(usltFrame.description).isEqualTo("description");
+    assertThat(usltFrame.value).isEqualTo("text");
+  }
+
+  @Test
+  public void decodeUsltFrame_utf16MultipleLines() {
+    byte[] header = new byte[] {ID3_TEXT_ENCODING_UTF_16, 'e', 'n', 'g'};
+    byte[] description = "".getBytes(StandardCharsets.UTF_16);
+    byte[] terminator = new byte[] {0, 0};
+    byte[] text = "first line\nsecond line".getBytes(StandardCharsets.UTF_16);
+    byte[] frameData =
+        new byte[header.length + description.length + terminator.length + text.length];
+    System.arraycopy(header, 0, frameData, 0, header.length);
+    System.arraycopy(description, 0, frameData, header.length, description.length);
+    System.arraycopy(
+        terminator, 0, frameData, header.length + description.length, terminator.length);
+    System.arraycopy(
+        text, 0, frameData, header.length + description.length + terminator.length, text.length);
+    byte[] rawId3 = buildSingleFrameTag("USLT", frameData);
+    Id3Decoder decoder = new Id3Decoder();
+
+    Metadata metadata = decoder.decode(rawId3, rawId3.length);
+
+    assertThat(metadata.length()).isEqualTo(1);
+    TextInformationFrame usltFrame = (TextInformationFrame) metadata.get(0);
+    assertThat(usltFrame.id).isEqualTo("USLT");
+    assertThat(usltFrame.description).isEmpty();
+    assertThat(usltFrame.value).isEqualTo("first line\nsecond line");
+  }
+
+  @Test
+  public void decodeUsltFrame_empty() {
+    byte[] rawId3 = buildSingleFrameTag("USLT", new byte[0]);
+    Id3Decoder decoder = new Id3Decoder();
+
+    Metadata metadata = decoder.decode(rawId3, rawId3.length);
+
+    assertThat(metadata.length()).isEqualTo(0);
   }
 
   @Test
