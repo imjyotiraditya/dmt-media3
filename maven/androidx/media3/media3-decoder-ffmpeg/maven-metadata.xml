@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>androidx.media3</groupId>
+  <artifactId>media3-decoder-ffmpeg</artifactId>
+  <versioning>
+    <latest>1.11.0-dmt</latest>
+    <release>1.11.0-dmt</release>
+    <versions>
+      <version>1.11.0-dmt</version>
+    </versions>
+    <lastUpdated>20260910073637</lastUpdated>
+  </versioning>
+</metadata>
