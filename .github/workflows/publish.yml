@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  MODULES: lib-common lib-container lib-database lib-datasource lib-decoder lib-extractor lib-exoplayer lib-session lib-decoder-midi lib-decoder-ffmpeg lib-exoplayer-hls lib-inspector
+  MODULES: lib-common lib-container lib-database lib-datasource lib-decoder lib-extractor lib-exoplayer lib-session lib-decoder-midi lib-decoder-ffmpeg lib-exoplayer-hls lib-inspector lib-ui-compose
   NDK_VERSION: r29
   ANDROID_API: 23
   DECODERS: vorbis opus flac alac pcm_mulaw pcm_alaw mp3 amrnb amrwb aac ac3 eac3 dca mlp truehd ac4 ape wavpack tta tak
